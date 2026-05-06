@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/runtime" },
+    { "path": "./packages/solr" },
+    { "path": "./packages/knowledge" }
+  ]
+}
