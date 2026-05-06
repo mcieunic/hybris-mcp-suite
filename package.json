@@ -1,0 +1,24 @@
+{
+  "name": "hybris-mcp-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo with MCP servers for SAP Commerce Cloud (Hybris): runtime, solr.",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:shared": "npm run build --workspace @hybris-mcp/shared",
+    "build:runtime": "npm run build --workspace @hybris-mcp/runtime",
+    "build:solr": "npm run build --workspace @hybris-mcp/solr",
+    "clean": "rm -rf packages/*/dist"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

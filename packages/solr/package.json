@@ -1,0 +1,32 @@
+{
+  "name": "@hybris-mcp/solr",
+  "version": "0.1.0",
+  "description": "MCP server for Hybris Solr: list cores, query, schema, reload, swap, backup, restore.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "hybris-mcp-solr": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "dev": "tsc -b --watch",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "hybris",
+    "sap",
+    "commerce-cloud",
+    "solr"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@hybris-mcp/shared": "*",
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
