@@ -23,6 +23,7 @@ import {
 } from '@hybris-mcp/shared';
 import { HybrisClient, HybrisConfig } from './hybris-client.js';
 import { LogReader } from './log-reader.js';
+import { AzureBlobLogClient } from './azure-blob-log-client.js';
 import { StorefrontClient } from './storefront-client.js';
 import { createPlaceholderMedia } from './placeholder.js';
 
@@ -59,6 +60,42 @@ function getLogReader(): LogReader | null {
   const rootPath = process.env.HYBRIS_LOG_PATH;
   if (!rootPath) return null;
   return new LogReader({ rootPath });
+}
+
+function getAzureBlobLogClient(): AzureBlobLogClient | null {
+  const sasUrl = process.env.AZURE_BLOB_LOG_SAS_URL;
+  const accountName = process.env.AZURE_BLOB_LOG_ACCOUNT_NAME;
+  const accountKey = process.env.AZURE_BLOB_LOG_ACCOUNT_KEY;
+  const container = process.env.AZURE_BLOB_LOG_CONTAINER;
+  const endpoint = process.env.AZURE_BLOB_LOG_ENDPOINT;
+
+  const hasSas = Boolean(sasUrl);
+  const hasSharedKey = Boolean(accountName && accountKey && container);
+  if (!hasSas && !hasSharedKey) return null;
+
+  const cacheDir =
+    process.env.AZURE_BLOB_LOG_CACHE_DIR ||
+    (process.env.HYBRIS_LOG_PATH
+      ? join(process.env.HYBRIS_LOG_PATH, '.azure-cache')
+      : undefined);
+  if (!cacheDir) return null;
+
+  if (hasSas) {
+    return new AzureBlobLogClient({ sasUrl: sasUrl!, cacheDir });
+  }
+  return new AzureBlobLogClient({
+    accountName: accountName!,
+    accountKey: accountKey!,
+    container: container!,
+    endpoint,
+    cacheDir,
+  });
+}
+
+function getAzureCachedLogReader(): LogReader | null {
+  const azure = getAzureBlobLogClient();
+  if (!azure) return null;
+  return new LogReader({ rootPath: azure.getCacheDir() });
 }
 
 interface StorefrontPreset {
@@ -695,6 +732,82 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'azure_list_logs',
+    description:
+      'List Hybris log files stored in Azure Blob Storage. Blob names mirror the local layout (e.g. "tomcat/console-20260506.log", "tomcat/access..2026-05-06.log", "console-20260506.log.gz"). Each entry reports remote size + modified time and whether a copy already sits in the local cache (AZURE_BLOB_LOG_CACHE_DIR).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prefix: {
+          type: 'string',
+          description: 'Optional blob name prefix (e.g. "tomcat/"). Mirrors `subdir` from list_logs.',
+        },
+      },
+    },
+  },
+  {
+    name: 'azure_download_log',
+    description:
+      'Download a single log blob from Azure Blob Storage into the local cache directory, preserving its path. By default skips the GET when the cached file already matches the remote Content-Length (idempotent). After download the file is readable via `read_log` against AZURE_BLOB_LOG_CACHE_DIR — or via `azure_read_log`, which combines download + read in one call.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Blob name = local relative path, e.g. "tomcat/console-20260506.log".',
+        },
+        force: {
+          type: 'boolean',
+          description: 'Re-download even if cached size matches (default false).',
+        },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'azure_read_log',
+    description:
+      'Convenience: download (if needed) a log blob from Azure Blob Storage, then read it with the same parser as `read_log` (entries, grep, since/until, tail/follow, .gz transparent). Use this when you want one round-trip from blob name to parsed entries.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Blob name = local relative path, e.g. "tomcat/console-20260506.log".',
+        },
+        entries: {
+          type: 'number',
+          description: 'Number of log entries to return (default 500, max 5000).',
+        },
+        fromEnd: {
+          type: 'boolean',
+          description: 'If true (default) returns the LAST N entries (tail); false reads from the start.',
+        },
+        grep: {
+          type: 'string',
+          description: 'Optional regex; only matching entries returned (matched against full entry text incl. stack trace).',
+        },
+        since: {
+          type: 'string',
+          description: 'ISO-8601 lower bound — entries earlier than this are skipped.',
+        },
+        until: {
+          type: 'string',
+          description: 'ISO-8601 upper bound — entries later than this are skipped.',
+        },
+        parsed: {
+          type: 'boolean',
+          description: 'Include structured `entries` array alongside raw `content` (default false).',
+        },
+        force: {
+          type: 'boolean',
+          description: 'Re-download from Azure even if cached size matches (default false).',
+        },
+      },
+      required: ['path'],
+    },
+  },
+  {
     name: 'delete_content_catalog',
     description:
       'DESTRUCTIVE: Delete all items belonging to a content catalog. Removes every CMSItem (components, slots, pages, navigation nodes, restrictions, page templates, slot-for-page links) AND Media items in every catalog version. ' +
@@ -823,6 +936,8 @@ async function main() {
   const config = getConfig();
   const hybrisClient = new HybrisClient(config);
   const logReader = getLogReader();
+  const azureBlobLogClient = getAzureBlobLogClient();
+  const azureCachedLogReader = getAzureCachedLogReader();
   const storefrontPresets = discoverStorefrontPresets();
 
   const requireLogReader = (): LogReader => {
@@ -832,6 +947,24 @@ async function main() {
       );
     }
     return logReader;
+  };
+
+  const requireAzureBlobLogClient = (): AzureBlobLogClient => {
+    if (!azureBlobLogClient) {
+      throw new Error(
+        'Azure log tools are disabled: set either AZURE_BLOB_LOG_SAS_URL, or AZURE_BLOB_LOG_ACCOUNT_NAME + AZURE_BLOB_LOG_ACCOUNT_KEY + AZURE_BLOB_LOG_CONTAINER. Cache dir resolves from AZURE_BLOB_LOG_CACHE_DIR or HYBRIS_LOG_PATH.'
+      );
+    }
+    return azureBlobLogClient;
+  };
+
+  const requireAzureCachedLogReader = (): LogReader => {
+    if (!azureCachedLogReader) {
+      throw new Error(
+        'Azure log tools are disabled: set either AZURE_BLOB_LOG_SAS_URL, or AZURE_BLOB_LOG_ACCOUNT_NAME + AZURE_BLOB_LOG_ACCOUNT_KEY + AZURE_BLOB_LOG_CONTAINER.'
+      );
+    }
+    return azureCachedLogReader;
   };
 
   const server = new Server(
@@ -1278,6 +1411,41 @@ try {
             anchorPath: validateString(args, 'anchorPath', false),
           });
           break;
+
+        case 'azure_list_logs':
+          result = await requireAzureBlobLogClient().listBlobs(
+            validateString(args, 'prefix', false)
+          );
+          break;
+
+        case 'azure_download_log':
+          result = await requireAzureBlobLogClient().downloadBlob(
+            validateString(args, 'path', true),
+            { force: validateBoolean(args, 'force', false) }
+          );
+          break;
+
+        case 'azure_read_log': {
+          const blobPath = validateString(args, 'path', true);
+          const azure = requireAzureBlobLogClient();
+          const reader = requireAzureCachedLogReader();
+          const download = await azure.downloadBlob(blobPath, {
+            force: validateBoolean(args, 'force', false),
+          });
+          const fromEnd = args && 'fromEnd' in args
+            ? validateBoolean(args, 'fromEnd', true)
+            : true;
+          const read = await reader.readLog(blobPath, {
+            entries: validateNumber(args, 'entries', { min: 1, max: 5000 }),
+            fromEnd,
+            grep: validateString(args, 'grep', false),
+            since: validateString(args, 'since', false),
+            until: validateString(args, 'until', false),
+            parsed: validateBoolean(args, 'parsed', false),
+          });
+          result = { download, read };
+          break;
+        }
 
         case 'delete_content_catalog': {
           const contentCatalogId = validateString(args, 'contentCatalogId', true);
