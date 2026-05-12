@@ -10,7 +10,7 @@
  *
  * Two auth modes:
  *   1. SAS URL  — container-scoped, e.g.
- *        https://acc.blob.core.windows.net/sniezka-logs?sv=...&sig=...
+ *        https://acc.blob.core.windows.net/abs-logs?sv=...&sig=...
  *      Configure via:
  *        AZURE_BLOB_LOG_SAS_URL
  *   2. Shared Key (Account Key) — HMAC-SHA256 signing per request.
