@@ -24,26 +24,46 @@ import {
   validateNumber,
   validateBoolean,
   validateStringArray,
+  HacClient,
+  HacConfig,
 } from '@hybris-mcp/shared';
 import { SolrClient, SolrConfig } from './solr-client.js';
+import { HacSolrClient } from './hac-solr-client.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
 
 function getSolrClient(): SolrClient {
   const cfg: SolrConfig = {
-    baseUrl: process.env.SOLR_URL || 'http://localhost:8983/solr/',
+    baseUrl: process.env.SOLR_URL || 'https://localhost:8983/solr/',
     username: process.env.SOLR_USERNAME,
     password: process.env.SOLR_PASSWORD,
   };
   return new SolrClient(cfg);
 }
 
+let hacSolrClientSingleton: HacSolrClient | null = null;
+function getHacSolrClient(): HacSolrClient {
+  if (hacSolrClientSingleton) return hacSolrClientSingleton;
+  const baseUrl = process.env.HYBRIS_BASE_URL;
+  const username = process.env.HYBRIS_USERNAME;
+  const password = process.env.HYBRIS_PASSWORD;
+  if (!baseUrl || !username || !password) {
+    throw new Error(
+      'HAC tools are disabled: set HYBRIS_BASE_URL, HYBRIS_USERNAME and HYBRIS_PASSWORD in this package env (mcp-hybris-suite-env/<env>/solr.env).'
+    );
+  }
+  const cfg: HacConfig = { baseUrl, username, password };
+  if (process.env.HYBRIS_HAC_PATH) cfg.hacPath = process.env.HYBRIS_HAC_PATH;
+  hacSolrClientSingleton = new HacSolrClient(new HacClient(cfg));
+  return hacSolrClientSingleton;
+}
+
 const tools: Tool[] = [
   {
     name: 'solr_list_cores',
     description:
-      'List Solr cores (indexes) with doc counts and size. Solr URL via env SOLR_URL (default http://localhost:8983/solr/). Hybris cores follow the pattern <master|slave>_<indexName>_<type>_<config> (e.g. master_<index>_Product_default).',
+      'List Solr cores (indexes) with doc counts and size. Solr URL via env SOLR_URL (default https://localhost:8983/solr/ — Hybris bundles Solr with SSL enabled). Hybris cores follow the pattern <master|slave>_<indexName>_<type>_<config> (e.g. master_<index>_Product_default).',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -205,6 +225,88 @@ const tools: Tool[] = [
         confirm: { type: 'boolean', description: 'Must be true to execute (default false → dry-run that returns the planned payload).' },
       },
       required: ['core', 'name', 'type'],
+    },
+  },
+  {
+    name: 'solr_list_cores_via_hac',
+    description:
+      'List Solr cores via Hybris HAC (Groovy console) using solrServerService.getSolrServer. Use when Solr is not reachable directly (e.g. CCV2). ' +
+      'Iterates every FacetSearchConfig in the system, dedupes by Solr server endpoint, and returns numDocs/sizeInBytes/instanceDir per core. ' +
+      'Requires HYBRIS_BASE_URL/HYBRIS_USERNAME/HYBRIS_PASSWORD in solr.env.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'solr_core_info_via_hac',
+    description:
+      'Return full CoreAdmin STATUS for a single core via HAC. Auto-resolves which FacetSearchConfig owns the core unless `facetSearchConfig` is provided.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        core: { type: 'string', description: 'Core name (e.g. master_<index>_Product_default).' },
+        facetSearchConfig: { type: 'string', description: 'Optional FacetSearchConfig name to scope the lookup (skips auto-discovery).' },
+      },
+      required: ['core'],
+    },
+  },
+  {
+    name: 'solr_query_via_hac',
+    description:
+      'Execute a Solr /select query against a specific core through HAC. Mirrors solr_query params (q, fq, fl, sort, start, rows, qOp, defType, facet, facetField, requestHandler, extra). Returns the raw Solr response tree (response.docs, facet_counts, ...).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        core: { type: 'string', description: 'Core name.' },
+        facetSearchConfig: { type: 'string', description: 'Optional FacetSearchConfig name (skips auto-discovery).' },
+        q: { type: 'string', description: 'Main query. Defaults to *:*.' },
+        fq: { type: 'array', items: { type: 'string' } },
+        fl: { type: 'string' },
+        sort: { type: 'string' },
+        start: { type: 'number', minimum: 0 },
+        rows: { type: 'number', minimum: 0, maximum: 1000 },
+        qOp: { type: 'string', enum: ['AND', 'OR'] },
+        defType: { type: 'string' },
+        facet: { type: 'boolean' },
+        facetField: { type: 'array', items: { type: 'string' } },
+        requestHandler: { type: 'string', description: 'Request handler path, defaults to "select".' },
+        extra: { type: 'object', description: 'Arbitrary extra Solr params (string or string[]).', additionalProperties: true },
+      },
+      required: ['core'],
+    },
+  },
+  {
+    name: 'solr_schema_fields_via_hac',
+    description: 'Return schema fields, dynamic fields, and uniqueKey for a core via HAC (SchemaRequest.Fields / DynamicFields / UniqueKey).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        core: { type: 'string' },
+        facetSearchConfig: { type: 'string' },
+      },
+      required: ['core'],
+    },
+  },
+  {
+    name: 'solr_backup_status_via_hac',
+    description: 'Replication details for a core via HAC (command=details). Includes recent backups and replication status. Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        core: { type: 'string' },
+        facetSearchConfig: { type: 'string' },
+      },
+      required: ['core'],
+    },
+  },
+  {
+    name: 'solr_restore_status_via_hac',
+    description: 'Status of the most recent restore on a core via HAC (replication command=restorestatus). Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        core: { type: 'string' },
+        facetSearchConfig: { type: 'string' },
+      },
+      required: ['core'],
     },
   },
 ];
@@ -428,6 +530,90 @@ async function main() {
               replace,
             }),
           };
+          break;
+        }
+
+        case 'solr_list_cores_via_hac': {
+          result = await getHacSolrClient().listCores();
+          break;
+        }
+
+        case 'solr_core_info_via_hac': {
+          const core = validateString(args, 'core', true)!;
+          const fsConfig = validateString(args, 'facetSearchConfig', false);
+          result = await getHacSolrClient().coreInfo(core, fsConfig);
+          break;
+        }
+
+        case 'solr_query_via_hac': {
+          const core = validateString(args, 'core', true)!;
+          const fsConfig = validateString(args, 'facetSearchConfig', false);
+          const q = validateString(args, 'q', false);
+          const fq = validateStringArray(args, 'fq', false);
+          const fl = validateString(args, 'fl', false);
+          const sort = validateString(args, 'sort', false);
+          const start = validateNumber(args, 'start', { min: 0 });
+          const rows = validateNumber(args, 'rows', { min: 0, max: 1000 });
+          const qOp = validateString(args, 'qOp', false);
+          const defType = validateString(args, 'defType', false);
+          const facet = validateBoolean(args, 'facet', false);
+          const facetField = validateStringArray(args, 'facetField', false);
+          const requestHandler = validateString(args, 'requestHandler', false);
+          const extraRaw = args?.extra;
+          let extra: Record<string, string | string[]> | undefined;
+          if (extraRaw !== undefined && extraRaw !== null) {
+            if (typeof extraRaw !== 'object' || Array.isArray(extraRaw)) {
+              throw new Error('extra must be an object');
+            }
+            extra = {};
+            for (const [k, v] of Object.entries(extraRaw as Record<string, unknown>)) {
+              if (typeof v === 'string') extra[k] = v;
+              else if (Array.isArray(v) && v.every((x) => typeof x === 'string')) extra[k] = v as string[];
+              else throw new Error(`extra.${k} must be a string or string[]`);
+            }
+          }
+          if (qOp !== undefined && qOp !== 'AND' && qOp !== 'OR') {
+            throw new Error('qOp must be "AND" or "OR"');
+          }
+          result = await getHacSolrClient().query(
+            core,
+            {
+              q,
+              fq,
+              fl,
+              sort,
+              start,
+              rows,
+              qOp: qOp as 'AND' | 'OR' | undefined,
+              defType,
+              facet,
+              facetField,
+              requestHandler,
+              extra,
+            },
+            fsConfig
+          );
+          break;
+        }
+
+        case 'solr_schema_fields_via_hac': {
+          const core = validateString(args, 'core', true)!;
+          const fsConfig = validateString(args, 'facetSearchConfig', false);
+          result = await getHacSolrClient().schemaFields(core, fsConfig);
+          break;
+        }
+
+        case 'solr_backup_status_via_hac': {
+          const core = validateString(args, 'core', true)!;
+          const fsConfig = validateString(args, 'facetSearchConfig', false);
+          result = await getHacSolrClient().backupStatus(core, fsConfig);
+          break;
+        }
+
+        case 'solr_restore_status_via_hac': {
+          const core = validateString(args, 'core', true)!;
+          const fsConfig = validateString(args, 'facetSearchConfig', false);
+          result = await getHacSolrClient().restoreStatus(core, fsConfig);
           break;
         }
 
