@@ -111,21 +111,6 @@ You can define as many presets as you need — just repeat the triplet with a di
 }
 ```
 
-### Solr — CCv2 remote environment
-
-```json
-"hybris-solr-x1": {
-  "type": "stdio",
-  "command": "node",
-  "args": ["/path/to/hybris-mcp-suite/packages/solr/dist/index.js"],
-  "env": {
-    "SOLR_URL": "https://solr.xxxxxxxx-yourproject-x1-public.model-t.cc.commerce.ondemand.com/",
-    "SOLR_USERNAME": "solradmin",
-    "SOLR_PASSWORD": "YourSolrPassword",
-    "NODE_TLS_REJECT_UNAUTHORIZED": "0"
-  }
-}
-```
 
 See [`.env.example`](./.env.example) for the full list of environment variables.
 

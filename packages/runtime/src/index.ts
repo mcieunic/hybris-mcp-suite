@@ -838,7 +838,7 @@ if (ct == null) {
 }
 
 def declaredQualifiers = ct.declaredattributedescriptors.collect { it.qualifier } as Set
-def attrs = includeInherited ? ct.attributeDescriptors : ct.declaredattributedescriptors
+def attrs = includeInherited ? typeService.getAttributeDescriptorsForType(ct) : ct.declaredattributedescriptors
 if (onlyLocalized) attrs = attrs.findAll { it.localized }
 
 def out = [
@@ -850,7 +850,7 @@ def out = [
     [
       qualifier: a.qualifier,
       localized: a.localized,
-      mandatory: a.mandatory,
+      mandatory: !a.optional,
       unique: a.unique,
       partOf: a.partOf,
       writable: a.writable,
