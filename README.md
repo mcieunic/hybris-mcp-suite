@@ -35,88 +35,74 @@ Each server communicates over **stdio** — you register it as a JSON entry in y
 | **Claude Code** | `.mcp.json` in the project root | Project — shared via git, every team member gets the same servers |
 | **Claude Code** | `~/.claude.json` | Global — available in every project on this machine |
 
-All files use the same JSON structure — an `"mcpServers"` object where each key is a server name and the value describes how to start it (see examples below).
+All files use the same JSON structure — an `"mcpServers"` object where each key is a server name and the value describes how to start it.
 
 > **After any config change you must restart the session** (restart Claude Code, relaunch Claude Desktop, or reload the IDE window). MCP servers are started once at session init and are not hot-reloaded.
 
+### Environment-based credentials
+
+Credentials are **not** stored in `.mcp.json`. Instead, each server reads a `HYBRIS_ENV` variable and loads the matching `.env` file from a gitignored directory:
+
+```
+mcp-hybris-suite-env/
+├── local/
+│   ├── runtime.env
+│   └── solr.env
+├── s1/
+│   ├── runtime.env
+│   └── solr.env
+└── p1/
+    ├── runtime.env
+    └── solr.env
+```
+
+1. Copy the relevant sections from [`.env.example`](./.env.example) into the appropriate `runtime.env` / `solr.env` files and fill in your credentials.
+2. In `.mcp.json`, only set `HYBRIS_ENV` — the server resolves everything else from the env files.
+
+The `mcp-hybris-suite-env/` directory is gitignored — credentials never enter version control.
+
+### Registering the servers
+
+With env files in place, `.mcp.json` stays minimal — one entry per server per environment:
+
+```json
+{
+  "mcpServers": {
+    "hybris-local": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/hybris-mcp-suite/packages/runtime/dist/index.js"],
+      "env": { "HYBRIS_ENV": "local" }
+    },
+    "hybris-s1": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/hybris-mcp-suite/packages/runtime/dist/index.js"],
+      "env": { "HYBRIS_ENV": "s1" }
+    },
+    "hybris-solr": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/hybris-mcp-suite/packages/solr/dist/index.js"],
+      "env": { "HYBRIS_ENV": "local" }
+    }
+  }
+}
+```
+
 ### Storefront presets
 
-Storefront login presets follow the naming pattern `STOREFRONT_<NAME>_URL` / `_USERNAME` / `_PASSWORD`.
+Storefront login presets follow the naming pattern `STOREFRONT_<NAME>_URL` / `_USERNAME` / `_PASSWORD` inside `runtime.env`.
 The `<NAME>` part becomes the preset identifier (lowercased) — it should match the **site ID** so the tools know which storefront belongs to which site.
 For example, `STOREFRONT_B2B_URL` registers a preset named `b2b` for the B2B site.
 
 You can define as many presets as you need — just repeat the triplet with a different name.
 
-### Runtime — local development instance
-
-```json
-"hybris-local": {
-  "type": "stdio",
-  "command": "node",
-  "args": ["/path/to/hybris-mcp-suite/packages/runtime/dist/index.js"],
-  "env": {
-    "HYBRIS_BASE_URL": "https://localhost:9002",
-    "HYBRIS_USERNAME": "admin",
-    "HYBRIS_PASSWORD": "nimda",
-    "HYBRIS_LOG_PATH": "/path/to/project/hybris/log",
-    "NODE_TLS_REJECT_UNAUTHORIZED": "0",
-    "STOREFRONT_B2B_URL": "https://b2b.local:9002/yacceleratorstorefront",
-    "STOREFRONT_B2B_USERNAME": "john.doe@example.com",
-    "STOREFRONT_B2B_PASSWORD": "Test1234",
-    "STOREFRONT_B2C_URL": "https://b2c.local:9002/yacceleratorstorefront",
-    "STOREFRONT_B2C_USERNAME": "jane.doe@example.com",
-    "STOREFRONT_B2C_PASSWORD": "Test1234"
-  }
-}
-```
-
-### Runtime — CCv2 remote environment
-
-```json
-"hybris-x1": {
-  "type": "stdio",
-  "command": "node",
-  "args": ["/path/to/hybris-mcp-suite/packages/runtime/dist/index.js"],
-  "env": {
-    "HYBRIS_BASE_URL": "https://backoffice.xxxxxxxx-yourproject-x1-public.model-t.cc.commerce.ondemand.com",
-    "HYBRIS_USERNAME": "your.ccv2.user@company.com",
-    "HYBRIS_PASSWORD": "YourSecurePassword",
-    "NODE_TLS_REJECT_UNAUTHORIZED": "0",
-    "STOREFRONT_B2B_URL": "https://b2b.xxxxxxxx-yourproject-x1-public.model-t.cc.commerce.ondemand.com",
-    "STOREFRONT_B2B_USERNAME": "john.doe@example.com",
-    "STOREFRONT_B2B_PASSWORD": "Test1234",
-    "STOREFRONT_B2C_URL": "https://b2c.xxxxxxxx-yourproject-x1-public.model-t.cc.commerce.ondemand.com",
-    "STOREFRONT_B2C_USERNAME": "jane.doe@example.com",
-    "STOREFRONT_B2C_PASSWORD": "Test1234",
-    "AZURE_BLOB_LOG_ACCOUNT_NAME": "your-storage-account-name",
-    "AZURE_BLOB_LOG_ACCOUNT_KEY": "yourBase64EncodedAccountKey==",
-    "AZURE_BLOB_LOG_CONTAINER": "commerce-logs-separated",
-    "AZURE_BLOB_LOG_ENDPOINT": "https://your-storage-account-name.blob.core.windows.net",
-    "AZURE_BLOB_LOG_CACHE_DIR": "/path/to/project/hybris/log/.azure-cache-x1"
-  }
-}
-```
-
-### Solr — local instance
-
-```json
-"hybris-solr": {
-  "type": "stdio",
-  "command": "node",
-  "args": ["/path/to/hybris-mcp-suite/packages/solr/dist/index.js"],
-  "env": {
-    "SOLR_URL": "http://localhost:8983/solr/",
-    "NODE_TLS_REJECT_UNAUTHORIZED": "0"
-  }
-}
-```
-
-
 See [`.env.example`](./.env.example) for the full list of environment variables.
 
 ## How to use it
 
-Once the servers are registered in your MCP client, just talk to your AI assistant in natural language. It will pick the right tool automatically.
+Once the servers are registered in your MCP client, just talk to your AI assistant in natural languokage. It will pick the right tool automatically.
 
 ### Querying & scripting
 

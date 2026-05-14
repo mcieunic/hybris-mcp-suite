@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// Load environment from .env file before anything reads process.env
+import { loadEnvFile } from '@hybris-mcp/shared';
+loadEnvFile('runtime');
+
 // Allow self-signed SSL certificates (common in local Hybris dev environments)
 if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === undefined) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
