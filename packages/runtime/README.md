@@ -27,7 +27,7 @@ Splits off from the original `hybris-runtime-mcp` repo. Solr-specific tools move
 | `AZURE_BLOB_LOG_CACHE_DIR` | no | `$HYBRIS_LOG_PATH/.azure-cache` | Local cache directory for downloaded blobs |
 | `STOREFRONT_<NAME>_URL` etc. | no | — | Storefront login presets |
 
-See [`../../.env.example`](../../.env.example) for the full list.
+See [`../../runtime.env.example`](../../runtime.env.example) for the full list.
 
 ### Azure Blob log fetch (CCv2 / remote envs)
 

@@ -85,7 +85,7 @@ mcp-hybris-suite-env/
     └── solr.env
 ```
 
-1. Copy the relevant sections from [`.env.example`](./.env.example) into the appropriate `runtime.env` / `solr.env` files and fill in your credentials.
+1. Copy [`runtime.env.example`](./runtime.env.example) and [`solr.env.example`](./solr.env.example) into each `mcp-hybris-suite-env/<env>/` directory (as `runtime.env` and `solr.env`) and fill in your credentials.
 2. In `.mcp.json`, only set `HYBRIS_ENV` — the server resolves everything else from the env files.
 
 The `mcp-hybris-suite-env/` directory is gitignored — credentials never enter version control.
@@ -138,7 +138,7 @@ For example, `STOREFRONT_B2B_URL` registers a preset named `b2b` for the B2B sit
 
 You can define as many presets as you need — just repeat the triplet with a different name.
 
-See [`.env.example`](./.env.example) for the full list of environment variables.
+See [`runtime.env.example`](./runtime.env.example) and [`solr.env.example`](./solr.env.example) for the full list of environment variables.
 
 ## How to use it
 

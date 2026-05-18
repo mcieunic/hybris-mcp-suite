@@ -52,6 +52,8 @@ Under the hood: each tool runs a single Groovy script through HAC's `/console/sc
 
 The HAC credentials are the same as those used by `@hybris-mcp/runtime` — re-use the values from your `runtime.env` in `solr.env`. The `*_via_hac` tools throw a clear "disabled" error if any of the three HAC vars is missing.
 
+See [`../../solr.env.example`](../../solr.env.example) for a ready-to-copy template.
+
 ## Run
 
 ```bash

@@ -34,7 +34,7 @@ export function loadEnvFile(serverType: ServerType): void {
   if (!existsSync(envFilePath)) {
     console.error(
       `Env file not found: ${envFilePath}\n` +
-      `Create it based on .env.example in the project root.\n\n` +
+      `Create it based on ${serverType}.env.example in the project root.\n\n` +
       `Expected structure:\n` +
       `  mcp-hybris-suite-env/${envName}/runtime.env\n` +
       `  mcp-hybris-suite-env/${envName}/solr.env`
