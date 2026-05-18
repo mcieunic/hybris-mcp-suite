@@ -11,7 +11,7 @@ export interface HacConfig {
   baseUrl: string;
   username: string;
   password: string;
-  hacPath?: string;
+  hacPath: string;
 }
 
 export interface GroovyResult {
@@ -27,14 +27,11 @@ interface HacSession {
 export class HacClient {
   private static readonly REQUEST_TIMEOUT_MS = 30000;
 
-  private readonly config: Required<HacConfig>;
+  private readonly config: HacConfig;
   private session: HacSession | null = null;
 
   constructor(config: HacConfig) {
-    this.config = {
-      hacPath: '/hac',
-      ...config,
-    };
+    this.config = config;
   }
 
   private get hacPrefix(): string {
@@ -109,6 +106,20 @@ export class HacClient {
     return null;
   }
 
+  /**
+   * Locate the Spring Security login endpoint by reading the <form action="..."> on
+   * the login page. Hybris 2211+ moved this from `${hacPath}/j_spring_security_check`
+   * to a root-level `/j_spring_security_check`, so a hardcoded path breaks newer setups.
+   */
+  static extractLoginAction(html: string, baseUrl: string, fallbackUrl: string): string {
+    const match = html.match(/<form[^>]*action=["']([^"']*j_spring_security_check[^"']*)["']/i);
+    if (!match) return fallbackUrl;
+    const action = match[1];
+    if (action.startsWith('http')) return action;
+    if (action.startsWith('/')) return `${baseUrl}${action}`;
+    return fallbackUrl;
+  }
+
   private extractCookies(response: Response): string[] {
     const cookies: string[] = [];
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
@@ -164,7 +175,11 @@ export class HacClient {
       throw new Error('Failed to extract CSRF token from HAC login page. Check HYBRIS_BASE_URL.');
     }
 
-    const loginUrl = `${this.config.baseUrl}${this.hacPrefix}/j_spring_security_check`;
+    const loginUrl = HacClient.extractLoginAction(
+      loginPageHtml,
+      this.config.baseUrl,
+      `${this.config.baseUrl}${this.hacPrefix}/j_spring_security_check`
+    );
     const loginBody = new URLSearchParams({
       j_username: this.config.username,
       j_password: this.config.password,

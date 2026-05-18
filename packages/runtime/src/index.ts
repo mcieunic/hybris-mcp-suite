@@ -24,6 +24,7 @@ import {
   validateNumber,
   validateBoolean,
   validateStringArray,
+  resolveHacPrefix,
 } from '@hybris-mcp/shared';
 import { HybrisClient, HybrisConfig } from './hybris-client.js';
 import { LogReader } from './log-reader.js';
@@ -52,7 +53,7 @@ function getConfig(): HybrisConfig {
     baseUrl,
     username,
     password,
-    hacPath: process.env.HYBRIS_HAC_PATH || '/hac',
+    hacPath: resolveHacPrefix(process.env.HYBRIS_HAC_PATH),
   };
 }
 

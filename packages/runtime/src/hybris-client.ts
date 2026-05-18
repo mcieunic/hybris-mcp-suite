@@ -2,13 +2,14 @@
  * Hybris API Client for interacting with SAP Commerce Cloud
  */
 
+import { HacClient } from '@hybris-mcp/shared';
 import { buildExportCmsPageScript, ExportCmsPageParams } from './export-cms-page.js';
 
 export interface HybrisConfig {
   baseUrl: string;
   username: string;
   password: string;
-  hacPath?: string; // HAC path prefix, defaults to '/hac'
+  hacPath: string;
 }
 
 export interface FlexibleSearchResult {
@@ -42,14 +43,11 @@ export class HybrisClient {
   private hacSession: HacSession | null = null;
 
   constructor(config: HybrisConfig) {
-    this.config = {
-      hacPath: '/hac',
-      ...config,
-    };
+    this.config = config;
   }
 
   private get hacPrefix(): string {
-    return this.config.hacPath || '/hac';
+    return this.config.hacPath;
   }
 
   private async fetchWithTimeout(
@@ -247,7 +245,11 @@ export class HybrisClient {
     }
 
     // Step 2: Submit login form
-    const loginUrl = `${this.config.baseUrl}${this.hacPrefix}/j_spring_security_check`;
+    const loginUrl = HacClient.extractLoginAction(
+      loginPageHtml,
+      this.config.baseUrl,
+      `${this.config.baseUrl}${this.hacPrefix}/j_spring_security_check`
+    );
     const loginBody = new URLSearchParams({
       j_username: this.config.username,
       j_password: this.config.password,

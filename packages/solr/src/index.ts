@@ -26,6 +26,7 @@ import {
   validateStringArray,
   HacClient,
   HacConfig,
+  resolveHacPrefix,
 } from '@hybris-mcp/shared';
 import { SolrClient, SolrConfig } from './solr-client.js';
 import { HacSolrClient } from './hac-solr-client.js';
@@ -53,8 +54,12 @@ function getHacSolrClient(): HacSolrClient {
       'HAC tools are disabled: set HYBRIS_BASE_URL, HYBRIS_USERNAME and HYBRIS_PASSWORD in this package env (mcp-hybris-suite-env/<env>/solr.env).'
     );
   }
-  const cfg: HacConfig = { baseUrl, username, password };
-  if (process.env.HYBRIS_HAC_PATH) cfg.hacPath = process.env.HYBRIS_HAC_PATH;
+  const cfg: HacConfig = {
+    baseUrl,
+    username,
+    password,
+    hacPath: resolveHacPrefix(process.env.HYBRIS_HAC_PATH),
+  };
   hacSolrClientSingleton = new HacSolrClient(new HacClient(cfg));
   return hacSolrClientSingleton;
 }
